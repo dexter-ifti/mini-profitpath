@@ -1,4 +1,3 @@
-// src/index.js
 
 const express   = require('express');
 const cors      = require('cors');
@@ -12,6 +11,7 @@ const opportunitiesRouter = require('./routes/opportunities');
 const scanRouter          = require('./routes/scan');
 const { errorHandler, notFound } = require('./middleware');
 const { productStore }    = require('./data/store');
+const { startScheduler }  = require('./services/scheduler');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -54,6 +54,7 @@ app.listen(PORT, async () => {
   console.log(` Dashboard:  http://localhost:${PORT}`);
   console.log(` API root:   http://localhost:${PORT}/api`);
   console.log(` Products:   ${productStore.count()} loaded\n`);
+  await startScheduler();
 });
 
 module.exports = app;
