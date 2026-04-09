@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ProfitPath — Arbitrage Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0c0f;
+    --bg2:       #0f1217;
+    --bg3:       #161b22;
+    --border:    #1e2530;
+    --border2:   #2a3340;
+    --text:      #c9d1d9;
+    --muted:     #5a6a7a;
+    --accent:    #00ff88;
+    --accent2:   #00cc6a;
+    --warn:      #ffb300;
+    --danger:    #ff4757;
+    --blue:      #58a6ff;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; min-height: 100vh; }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg2);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo {
+    font-family: var(--mono); font-size: 15px; font-weight: 600;
+    color: var(--accent); letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .last-scan { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  #scan-btn {
+    background: var(--accent); color: #000; border: none; cursor: pointer;
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    padding: 7px 18px; border-radius: 2px; letter-spacing: 0.05em;
+    transition: background 0.15s, transform 0.1s;
+  }
+  #scan-btn:hover { background: var(--accent2); }
+  #scan-btn:active { transform: scale(0.97); }
+  #scan-btn.scanning { background: var(--muted); color: var(--text); cursor: wait; }
+
+  /* Layout */
+  main { padding: 20px 24px; max-width: 1400px; }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 16px 20px; border-radius: 2px;
+    animation: fadeUp 0.4s ease both;
+  }
+  .stat-card:nth-child(2) { animation-delay: 0.05s; }
+  .stat-card:nth-child(3) { animation-delay: 0.10s; }
+  .stat-card:nth-child(4) { animation-delay: 0.15s; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  .stat-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: var(--mono); font-size: 28px; font-weight: 600; color: var(--accent); line-height: 1; }
+  .stat-value.warn { color: var(--warn); }
+  .stat-value.blue { color: var(--blue); }
+  .stat-value.white { color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* Filters */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .filter-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  select, input[type=number] {
+    background: var(--bg2); border: 1px solid var(--border2); color: var(--text);
+    font-family: var(--mono); font-size: 12px; padding: 5px 10px; border-radius: 2px;
+    outline: none; cursor: pointer;
+  }
+  select:focus, input[type=number]:focus { border-color: var(--accent); }
+  input[type=number] { width: 80px; }
+  .filter-divider { width: 1px; height: 20px; background: var(--border); }
+
+  /* Table */
+  .table-wrap {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 2px;
+    overflow: hidden;
+  }
+  .table-header {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-title { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  #opp-count { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    letter-spacing: 0.08em; text-transform: uppercase; text-align: left;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--text); }
+  thead th.sorted { color: var(--accent); }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+    animation: rowIn 0.3s ease both;
+  }
+  @keyframes rowIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:none} }
+  tbody tr:hover { background: var(--bg3); }
+  tbody tr:last-child { border-bottom: none; }
+  td { padding: 11px 16px; font-family: var(--mono); font-size: 12px; }
+
+  .asin { color: var(--blue); font-size: 11px; }
+  .title-cell { color: var(--text); font-family: var(--sans); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mkt-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 2px;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    background: var(--bg3); border: 1px solid var(--border2); color: var(--text);
+  }
+  .mkt-badge.UK { border-color: #4a9eff55; color: var(--blue); }
+  .mkt-badge.DE { border-color: #ffb30055; color: var(--warn); }
+  .mkt-badge.FR { border-color: #ff475755; color: var(--danger); }
+  .mkt-badge.IT { border-color: #00ff8855; color: var(--accent); }
+  .mkt-badge.ES { border-color: #cc00ff55; color: #cc88ff; }
+
+  .roi-cell { color: var(--accent); font-weight: 600; }
+  .roi-cell.high { color: #00ffcc; }
+  .roi-cell.med  { color: var(--accent); }
+  .roi-cell.low  { color: var(--warn); }
+
+  .profit-cell { color: var(--text); }
+  .cat-tag {
+    font-size: 10px; color: var(--muted); padding: 1px 6px;
+    background: var(--bg3); border-radius: 2px;
+  }
+  .fee-breakdown { font-size: 10px; color: var(--muted); }
+
+  /* Expandable detail row */
+  .detail-row { display: none; background: var(--bg3); }
+  .detail-row.open { display: table-row; }
+  .detail-inner { padding: 12px 16px 14px; }
+  .detail-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .detail-item label { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .detail-item span { font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .detail-item span.pos { color: var(--accent); }
+  .detail-item span.neg { color: var(--danger); }
+
+  /* Empty state */
+  .empty { padding: 60px; text-align: center; color: var(--muted); font-family: var(--mono); }
+  .empty h3 { font-size: 14px; color: var(--text); margin-bottom: 8px; }
+  .empty p { font-size: 12px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--bg2); border: 1px solid var(--border2);
+    padding: 12px 20px; border-radius: 2px;
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    transform: translateY(80px); opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+    z-index: 200;
+  }
+  #toast.show { transform: none; opacity: 1; }
+  #toast.success { border-color: var(--accent); color: var(--accent); }
+  #toast.error   { border-color: var(--danger); color: var(--danger); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    PROFITPATH
+  </div>
+  <div class="header-right">
+    <span class="last-scan" id="last-scan">No scan yet</span>
+    <button id="scan-btn" onclick="runScan()">▶ RUN SCAN</button>
+  </div>
+</header>
+
+<main>
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Opportunities</div>
+      <div class="stat-value" id="s-opps">—</div>
+      <div class="stat-sub" id="s-opps-sub">Run a scan to start</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg ROI</div>
+      <div class="stat-value warn" id="s-roi">—</div>
+      <div class="stat-sub">Across flagged products</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Potential Profit</div>
+      <div class="stat-value blue" id="s-profit">—</div>
+      <div class="stat-sub">Sum of net profits</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Products Tracked</div>
+      <div class="stat-value white" id="s-products">—</div>
+      <div class="stat-sub">In database</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span class="filter-label">Filter</span>
+    <select id="f-marketplace" onchange="applyFilters()">
+      <option value="">All Markets</option>
+      <option>UK</option><option>DE</option><option>FR</option><option>IT</option><option>ES</option>
+    </select>
+    <select id="f-category" onchange="applyFilters()">
+      <option value="">All Categories</option>
+      <option>electronics</option><option>sports</option><option>home</option><option>toys</option><option>beauty</option><option>automotive</option>
+    </select>
+    <div class="filter-divider"></div>
+    <span class="filter-label">Min ROI %</span>
+    <input type="number" id="f-roi" value="20" min="0" max="500" onchange="applyFilters()"/>
+    <span class="filter-label">Min Profit</span>
+    <input type="number" id="f-profit" value="3" min="0" step="0.5" onchange="applyFilters()"/>
+    <div class="filter-divider"></div>
+    <select id="f-sort" onchange="applyFilters()">
+      <option value="roiPercent">Sort: ROI</option>
+      <option value="netProfit">Sort: Profit</option>
+      <option value="amazonPrice">Sort: Price</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <span class="table-title">Flagged Opportunities</span>
+      <span id="opp-count">0 results</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ASIN</th>
+          <th>Product</th>
+          <th>Mkt</th>
+          <th>Category</th>
+          <th>Supplier Cost</th>
+          <th>Amazon Price</th>
+          <th>Fees (total)</th>
+          <th>Net Profit</th>
+          <th>ROI %</th>
+          <th>Margin %</th>
+        </tr>
+      </thead>
+      <tbody id="opp-table">
+        <tr>
+          <td colspan="10">
+            <div class="empty">
+              <h3>No data yet</h3>
+              <p>Click RUN SCAN to detect arbitrage opportunities</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+let allOpportunities = [];
+let openRow = null;
+
+async function fetchStats() {
+  try {
+    const [statsRes, productsRes] = await Promise.all([
+      fetch('http://localhost:3000/api/opportunities/stats/summary'),
+      fetch('http://localhost:3000/api/products'),
+    ]);
+    const stats    = await statsRes.json();
+    const products = await productsRes.json();
+
+    document.getElementById('s-products').textContent = products.count ?? '—';
+
+    if (stats.data && stats.data.totalOpportunities > 0) {
+      const d = stats.data;
+      document.getElementById('s-opps').textContent   = d.totalOpportunities;
+      document.getElementById('s-opps-sub').textContent = `Best ROI: ${d.bestByRoi.roiPercent}%`;
+      document.getElementById('s-roi').textContent    = d.avgRoiPercent + '%';
+      document.getElementById('s-profit').textContent = '£' + d.totalPotentialProfit;
+    }
+  } catch(e) { console.error('Stats fetch failed', e); }
+}
+
+async function fetchOpportunities() {
+  const marketplace = document.getElementById('f-marketplace').value;
+  const category    = document.getElementById('f-category').value;
+  const minRoi      = document.getElementById('f-roi').value;
+  const minProfit   = document.getElementById('f-profit').value;
+
+  let url = `http://localhost:3000/api/opportunities?minRoi=${minRoi}&minProfit=${minProfit}`;
+  if (marketplace) url += `&marketplace=${marketplace}`;
+  if (category)    url += `&category=${category}`;
+
+  const res  = await fetch(url);
+  const data = await res.json();
+  allOpportunities = data.data || [];
+  renderTable();
+}
+
+function applyFilters() { fetchOpportunities(); }
+
+function renderTable() {
+  const sortKey = document.getElementById('f-sort').value;
+  const sorted  = [...allOpportunities].sort((a, b) => b[sortKey] - a[sortKey]);
+
+  document.getElementById('opp-count').textContent = `${sorted.length} result${sorted.length !== 1 ? 's' : ''}`;
+
+  const tbody = document.getElementById('opp-table');
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><h3>No opportunities found</h3><p>Try lowering filters or run a fresh scan</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = sorted.map((o, i) => {
+    const roiClass = o.roiPercent >= 100 ? 'high' : o.roiPercent >= 50 ? 'med' : 'low';
+    const delay    = Math.min(i * 0.03, 0.5);
+    return `
+      <tr onclick="toggleDetail(${i})" style="cursor:pointer;animation-delay:${delay}s">
+        <td class="asin">${o.asin}</td>
+        <td class="title-cell" title="${o.title}">${o.title}</td>
+        <td><span class="mkt-badge ${o.marketplace}">${o.marketplace}</span></td>
+        <td><span class="cat-tag">${o.category}</span></td>
+        <td>${o.symbol}${o.supplierCost.toFixed(2)}</td>
+        <td>${o.symbol}${o.amazonPrice.toFixed(2)}</td>
+        <td class="fee-breakdown">${o.symbol}${o.fees.total.toFixed(2)}</td>
+        <td class="profit-cell">${o.symbol}${o.netProfit.toFixed(2)}</td>
+        <td class="roi-cell ${roiClass}">${o.roiPercent}%</td>
+        <td class="fee-breakdown">${o.marginPercent}%</td>
+      </tr>
+      <tr class="detail-row" id="detail-${i}">
+        <td colspan="10">
+          <div class="detail-inner">
+            <div class="detail-grid">
+              <div class="detail-item"><label>Supplier</label><span>${o.supplier}</span></div>
+              <div class="detail-item"><label>Referral Fee</label><span class="neg">${o.symbol}${o.fees.referral.toFixed(2)}</span></div>
+              <div class="detail-item"><label>FBA Fee</label><span class="neg">${o.symbol}${o.fees.fba.toFixed(2)}</span></div>
+              <div class="detail-item"><label>VAT on Sale</label><span class="neg">${o.symbol}${o.fees.vatOnSale.toFixed(2)}</span></div>
+              <div class="detail-item"><label>Net Profit</label><span class="pos">${o.symbol}${o.netProfit.toFixed(2)}</span></div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function toggleDetail(i) {
+  const row = document.getElementById(`detail-${i}`);
+  if (!row) return;
+  if (openRow && openRow !== row) openRow.classList.remove('open');
+  row.classList.toggle('open');
+  openRow = row.classList.contains('open') ? row : null;
+}
+
+async function runScan() {
+  const btn = document.getElementById('scan-btn');
+  btn.textContent = '⟳ SCANNING...';
+  btn.classList.add('scanning');
+  btn.disabled = true;
+
+  try {
+    const res  = await fetch('http://localhost:3000/api/scan', { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      const d = data.data;
+      document.getElementById('last-scan').textContent =
+        `Last scan: ${new Date().toLocaleTimeString()} — ${d.productsScanned} products, ${d.durationMs}ms`;
+      showToast(`✓ ${d.opportunitiesFound} opportunities found across ${d.productsScanned} products`, 'success');
+      await fetchStats();
+      await fetchOpportunities();
+    } else {
+      showToast('Scan failed: ' + data.error, 'error');
+    }
+  } catch(e) {
+    showToast('Network error — is the API running?', 'error');
+  } finally {
+    btn.textContent = '▶ RUN SCAN';
+    btn.classList.remove('scanning');
+    btn.disabled = false;
+  }
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  setTimeout(() => t.className = '', 3500);
+}
+
+// Init
+fetchStats();
+fetchOpportunities();
+</script>
+</body>
+</html>
