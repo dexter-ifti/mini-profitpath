@@ -85,7 +85,7 @@ Edit `config/constants.js` to change:
 
 ## Next Steps
 
-1. **Add a real database** — swap `src/data/store.js` for PostgreSQL with `pg` or Prisma
-2. **Add a scheduler** — use `node-cron` to auto-scan every hour
-3. **Add a dashboard** — simple HTML table served from Express
-4. **Add real price data** — integrate Keepa API or scrape Amazon product pages
+1. **Add a real database** — swap `src/data/store.js` for PostgreSQL with `pg` or Prisma - added ✅
+2. **Add a scheduler** — use `node-cron` to auto-scan every hour - added ✅
+3. **Add a dashboard** — simple HTML table served from Express with filters and stats - added ✅
+4. **Add real price data** — integrate Keepa API or scrape Amazon product pages - planned
